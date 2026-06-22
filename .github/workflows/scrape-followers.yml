@@ -5,16 +5,20 @@ on:
   schedule:
     - cron: '0 8 * * 1'  # 每周一早8点自动运行
 
+env:
+  # 使用你的 Personal Access Token 来 push 数据
+  GH_TOKEN: ${{ secrets.GH_PAT }}
+
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 30  # 30分钟超时
+    timeout-minutes: 30
     
     steps:
       - name: 📥 检出仓库
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GH_PAT }}
 
       - name: 🐍 设置 Python
         uses: actions/setup-python@v5
@@ -31,8 +35,9 @@ jobs:
 
       - name: 📤 提交采集结果
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "Kaka0119"
+          git config user.email "github-actions@Kaka0119"
+          git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/Kaka0119/brand-follower-tracker.git
           git add data/
           git diff --staged --quiet || git commit -m "📊 自动采集：$(date +'%Y-%m-%d %H:%M')"
           git push
