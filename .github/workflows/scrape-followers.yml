@@ -8,6 +8,7 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    timeout-minutes: 30  # 30分钟超时
     
     steps:
       - name: 📥 检出仓库
@@ -22,8 +23,7 @@ jobs:
 
       - name: 📦 安装依赖
         run: |
-          pip install scrapling
-          pip install playwright
+          pip install "scrapling[all]"
           python -m playwright install chromium --with-deps
 
       - name: 🚀 运行采集脚本
