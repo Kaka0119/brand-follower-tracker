@@ -1,6 +1,10 @@
 """
-GitHub Action: 珠宝品牌社交平台粉丝数采集脚本
+GitHub Action: 珠宝品牌社交平台粉丝数采集脚本 v2
 在 GitHub Actions (海外 runner) 上自动抓取 Instagram/Facebook 粉丝数
+
+v2: 修复 Instagram/Facebook 抓取逻辑
+- 从 og:description 中提取粉丝数（即使被重定向到登录页，meta 标签也包含数据）
+- Facebook 需要从页面的结构化数据中提取
 """
 import asyncio
 import json
@@ -26,25 +30,6 @@ BRANDS = [
     ("Jeulia", "jeuliajewelry_shop", "jeuliajewelry", "JeuliaJewelry"),
     ("Kendra Scott", "kendrascott", "kendrascott", "KendraScott"),
 ]
-
-# 之前已从中国本地采集到的 TikTok 数据（实时爬取，2026-06-22）
-TIKTOK_PREVIOUS = {
-    "Mindjewel": 840,
-    "Tiffany & Co.": 563300,
-    "Cartier": 1100000,
-    "Bulgari": 736200,
-    "Van Cleef & Arpels": 466300,
-    "David Yurman": 363000,
-    "Monica Vinader": 47500,
-    "Stone and Strand": 7979,
-    "Mejuri": 276800,
-    "HEFANG": 70,
-    "Pandora": 696600,
-    "Ana Luisa": 43500,
-    "Catbird": 49500,
-    "Jeulia": 17300,
-    "Kendra Scott": 707000,
-}
 
 OUTPUT_DIR = "data"
 OUTPUT_FILE = os.path.join(OUTPUT_DIR, "brand_followers.json")
@@ -111,31 +96,50 @@ async def fetch_tiktok(session, handle):
 
 # ============ Instagram Scraper ============
 async def fetch_instagram(session, handle):
+    """
+    Instagram forces login for all profile pages now.
+    But the og:description meta tag in the login page still contains 
+    the follower count from the original profile.
+    Example: "2 Followers, 0 Following, 0 Posts - See Instagram photos and videos from Mindjewel (@mindjewel.co)"
+    """
     url = f"https://www.instagram.com/{handle}/"
     try:
         page = await session.fetch(url, timeout=20000)
         html = page.html_content
 
-        # og:description
+        # KEY: og:description always contains follower count even on login page
+        # Pattern: "XXX Followers, YYY Following, ZZZ Posts - See Instagram photos..."
         m = re.search(
             r'<meta[^>]*property="og:description"[^>]*content="([^"]+)"', html
         )
         if m:
             desc = m.group(1)
+            print(f"      og:desc: {desc[:100]}")
+            # Extract: "2 Followers" or "17M Followers" etc
             fm = re.search(
-                r"(\d+[.,\d]*(?:K|M|B)?)\s*(?:Follower)", desc, re.IGNORECASE
+                r"(\d+[.,\d]*(?:K|M|B)?)\s*(?:Follower|follower)", desc
+            )
+            if fm:
+                result = parse_count(fm.group(1))
+                if result:
+                    return result
+            
+            # Maybe just the first number in the description
+            fm2 = re.search(r"(\d+[.,\d]+)", desc)
+            if fm2:
+                return parse_count(fm2.group(1))
+
+        # Alternative: meta name="description"
+        m2 = re.search(
+            r'<meta[^>]*name="description"[^>]*content="([^"]+)"', html
+        )
+        if m2:
+            desc = m2.group(1)
+            fm = re.search(
+                r"(\d+[.,\d]*(?:K|M|B)?)\s*(?:Follower|follower)", desc, re.IGNORECASE
             )
             if fm:
                 return parse_count(fm.group(1))
-
-        # JSON-LD / embedded data
-        for p in [
-            r'"edge_followed_by"\s*:\s*\{\s*"count"\s*:\s*(\d+)',
-            r'"followerCount":(\d+)',
-        ]:
-            m = re.search(p, html[:100000])
-            if m:
-                return int(m.group(1))
 
         return None
     except Exception as e:
@@ -151,10 +155,31 @@ async def fetch_facebook(session, handle):
     try:
         page = await session.fetch(url, timeout=20000)
         html = page.html_content
-        for p in [r'"fan_count":(\d+)', r'"follower_count":(\d+)']:
-            m = re.search(p, html[:100000])
+
+        # Try JSON-LD structured data
+        for p in [
+            r'"fan_count":(\d+)',
+            r'"follower_count":(\d+)',
+            r'"page_fans":(\d+)',
+        ]:
+            m = re.search(p, html[:150000])
             if m:
                 return int(m.group(1))
+
+        # Try meta description
+        m = re.search(
+            r'<meta[^>]*name="description"[^>]*content="([^"]+)"', html
+        )
+        if m:
+            desc = m.group(1)
+            print(f"      FB desc: {desc[:100]}")
+            fm = re.search(
+                r"(\d+[.,\d]*(?:K|M|B)?)\s*(?:people follow this|followers?)",
+                desc, re.IGNORECASE
+            )
+            if fm:
+                return parse_count(fm.group(1))
+
         return None
     except Exception as e:
         print(f"    FB {handle} error: {e}")
@@ -172,66 +197,45 @@ async def main():
 
     # ===== TikTok =====
     print("\n===== TikTok =====")
-    try:
-        async with AsyncStealthySession(headless=True, timeout=20000, max_pages=3) as session:
-            for brand_name, tt_h, _, _ in BRANDS:
-                print(f"  @{tt_h}...", end=" ", flush=True)
-                val = await fetch_tiktok(session, tt_h)
-                if val is not None:
-                    results[brand_name] = {"TikTok": val}
-                    print(f"✅ {val:,}")
-                else:
-                    results[brand_name] = {
-                        "TikTok": TIKTOK_PREVIOUS.get(brand_name, "N/A")
-                    }
-                    print(f"⚠ using previous: {results[brand_name]['TikTok']}")
-                await asyncio.sleep(0.5)
-    except Exception as e:
-        print(f"  TT session error: {e}")
-        for brand_name, _, _, _ in BRANDS:
-            results[brand_name] = {"TikTok": TIKTOK_PREVIOUS.get(brand_name, "N/A")}
+    async with AsyncStealthySession(headless=True, timeout=20000, max_pages=3) as session:
+        for brand_name, tt_h, _, _ in BRANDS:
+            print(f"  @{tt_h}...", end=" ", flush=True)
+            val = await fetch_tiktok(session, tt_h)
+            results[brand_name] = {"TikTok": val if val else "N/A", "Instagram": "N/A", "Facebook": "N/A"}
+            if val:
+                print(f"✅ {val:,}")
+            else:
+                print("❌")
+            await asyncio.sleep(0.5)
 
     # ===== Instagram =====
     print("\n===== Instagram =====")
-    try:
-        async with AsyncStealthySession(headless=True, timeout=20000, max_pages=2) as session:
-            for brand_name, _, ig_h, _ in BRANDS:
-                print(f"  @{ig_h}...", end=" ", flush=True)
-                val = await fetch_instagram(session, ig_h)
-                results[brand_name]["Instagram"] = val if val else "N/A"
-                if val:
-                    print(f"✅ {val:,}")
-                else:
-                    print("❌")
-                await asyncio.sleep(1)
-    except Exception as e:
-        print(f"  IG session error: {e}")
-        for brand_name, _, _, _ in BRANDS:
-            if "Instagram" not in results[brand_name]:
-                results[brand_name]["Instagram"] = "N/A"
+    async with AsyncStealthySession(headless=True, timeout=20000, max_pages=2) as session:
+        for brand_name, _, ig_h, _ in BRANDS:
+            print(f"  @{ig_h}...", end=" ", flush=True)
+            val = await fetch_instagram(session, ig_h)
+            if val:
+                results[brand_name]["Instagram"] = val
+                print(f"✅ {val:,}")
+            else:
+                print("❌")
+            await asyncio.sleep(0.5)
 
     # ===== Facebook =====
     print("\n===== Facebook =====")
-    try:
-        async with AsyncStealthySession(headless=True, timeout=20000, max_pages=2) as session:
-            for brand_name, _, _, fb_h in BRANDS:
-                print(f"  {fb_h or '(empty)'}...", end=" ", flush=True)
-                if not fb_h:
-                    results[brand_name]["Facebook"] = "N/A"
-                    print("(no handle)")
-                    continue
-                val = await fetch_facebook(session, fb_h)
-                results[brand_name]["Facebook"] = val if val else "N/A"
-                if val:
-                    print(f"✅ {val:,}")
-                else:
-                    print("❌")
-                await asyncio.sleep(1)
-    except Exception as e:
-        print(f"  FB session error: {e}")
-        for brand_name, _, _, _ in BRANDS:
-            if "Facebook" not in results[brand_name]:
-                results[brand_name]["Facebook"] = "N/A"
+    async with AsyncStealthySession(headless=True, timeout=20000, max_pages=2) as session:
+        for brand_name, _, _, fb_h in BRANDS:
+            print(f"  {fb_h or '(empty)'}...", end=" ", flush=True)
+            if not fb_h:
+                print("(no handle)")
+                continue
+            val = await fetch_facebook(session, fb_h)
+            if val:
+                results[brand_name]["Facebook"] = val
+                print(f"✅ {val:,}")
+            else:
+                print("❌")
+            await asyncio.sleep(0.5)
 
     # ===== 生成输出 =====
     output = {
@@ -241,11 +245,9 @@ async def main():
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    # 最新数据
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         json.dump(output, f, ensure_ascii=False, indent=2)
 
-    # 历史存档
     history_file = os.path.join(HISTORY_DIR, f"brand_followers_{date_tag}.json")
     with open(history_file, "w", encoding="utf-8") as f:
         json.dump(output, f, ensure_ascii=False, indent=2)
