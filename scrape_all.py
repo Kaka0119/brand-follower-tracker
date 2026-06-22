@@ -107,15 +107,28 @@ async def fetch_instagram(session, handle):
         page = await session.fetch(url, timeout=20000)
         html = page.html_content
 
-        # KEY: og:description always contains follower count even on login page
-        # Pattern: "XXX Followers, YYY Following, ZZZ Posts - See Instagram photos..."
+        # Instagram login page still returns meta tags with profile info
+        # Try meta name="description" first
         m = re.search(
-            r'<meta[^>]*property="og:description"[^>]*content="([^"]+)"', html
+            r'<meta[^>]*name="description"[^>]*content="([^"]+)"', html
         )
         if m:
             desc = m.group(1)
-            print(f"      og:desc: {desc[:100]}")
-            # Extract: "2 Followers" or "17M Followers" etc
+            # Pattern: "2 Followers, 0 Following, 0 Posts - See Instagram photos and videos from Mindjewel (@mindjewel.co)"
+            fm = re.search(
+                r"(\d+[.,\d]*(?:K|M|B)?)\s*(?:Follower|follower)", desc
+            )
+            if fm:
+                result = parse_count(fm.group(1))
+                if result:
+                    return result
+        
+        # Try og:description
+        m2 = re.search(
+            r'<meta[^>]*property="og:description"[^>]*content="([^"]+)"', html
+        )
+        if m2:
+            desc = m2.group(1)
             fm = re.search(
                 r"(\d+[.,\d]*(?:K|M|B)?)\s*(?:Follower|follower)", desc
             )
@@ -124,22 +137,10 @@ async def fetch_instagram(session, handle):
                 if result:
                     return result
             
-            # Maybe just the first number in the description
+            # Sometimes just the raw number
             fm2 = re.search(r"(\d+[.,\d]+)", desc)
             if fm2:
                 return parse_count(fm2.group(1))
-
-        # Alternative: meta name="description"
-        m2 = re.search(
-            r'<meta[^>]*name="description"[^>]*content="([^"]+)"', html
-        )
-        if m2:
-            desc = m2.group(1)
-            fm = re.search(
-                r"(\d+[.,\d]*(?:K|M|B)?)\s*(?:Follower|follower)", desc, re.IGNORECASE
-            )
-            if fm:
-                return parse_count(fm.group(1))
 
         return None
     except Exception as e:
@@ -166,15 +167,33 @@ async def fetch_facebook(session, handle):
             if m:
                 return int(m.group(1))
 
-        # Try meta description
+        # Try meta description (FB uses format: "XXX likes · YYY talking")
         m = re.search(
             r'<meta[^>]*name="description"[^>]*content="([^"]+)"', html
         )
         if m:
             desc = m.group(1)
-            print(f"      FB desc: {desc[:100]}")
+            print(f"      FB desc: {desc[:120]}")
+            # FB format: "Tiffany & Co. 10,373,775 likes · 46,769 talking about this."
             fm = re.search(
-                r"(\d+[.,\d]*(?:K|M|B)?)\s*(?:people follow this|followers?)",
+                r"(\d+[.,\d]*(?:K|M|B)?)\s*(?:likes|followers?|people follow this)",
+                desc, re.IGNORECASE
+            )
+            if fm:
+                result = parse_count(fm.group(1))
+                if result:
+                    print(f"      => {result:,} likes")
+                    return result
+            # Try OG:description as fallback
+            
+        # Try og:description as second fallback  
+        m2 = re.search(
+            r'<meta[^>]*property="og:description"[^>]*content="([^"]+)"', html
+        )
+        if m2:
+            desc = m2.group(1)
+            fm = re.search(
+                r"(\d+[.,\d]*(?:K|M|B)?)\s*(?:likes|followers?|people follow this)",
                 desc, re.IGNORECASE
             )
             if fm:
