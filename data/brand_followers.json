@@ -1,9 +1,9 @@
 {
   "采集时间": "2026-06-22 09:42:37",
   "数据说明": {
-    "TikTok": "实时爬取 (GitHub Actions / 中国大陆)",
-    "Instagram": "前6个品牌来自中国大陆爬取(og:description)，剩余9个IG登录拦截无法获取",
-    "Facebook": "来自GitHub Actions海外runner爬取(meta description)，6个品牌获取成功"
+    "TikTok": "实时爬取 (GitHub Actions 海外runner)",
+    "Instagram": "前6个品牌来自中国大陆 og:description 提取；剩余9个IG 2026年强制登录无法获取",
+    "Facebook": "来自 GitHub Actions 海外runner + 本地验证，从 meta description 提取 likes 数"
   },
   "数据来源": "Kaka0119/brand-follower-tracker GitHub Actions",
   "数据": {
@@ -30,7 +30,7 @@
     "Van Cleef & Arpels": {
       "TikTok": 466300,
       "Instagram": 4000000,
-      "Facebook": "N/A"
+      "Facebook": 1253878
     },
     "David Yurman": {
       "TikTok": 363000,
@@ -50,7 +50,7 @@
     "Mejuri": {
       "TikTok": 276800,
       "Instagram": "N/A",
-      "Facebook": "N/A"
+      "Facebook": 153926
     },
     "HEFANG": {
       "TikTok": 70,
@@ -60,7 +60,7 @@
     "Pandora": {
       "TikTok": 696600,
       "Instagram": "N/A",
-      "Facebook": "N/A"
+      "Facebook": 19652104
     },
     "Ana Luisa": {
       "TikTok": 43500,
@@ -70,17 +70,17 @@
     "Catbird": {
       "TikTok": 49500,
       "Instagram": "N/A",
-      "Facebook": "N/A"
+      "Facebook": 68922
     },
     "Jeulia": {
       "TikTok": 17300,
       "Instagram": "N/A",
-      "Facebook": "N/A"
+      "Facebook": 2433651
     },
     "Kendra Scott": {
       "TikTok": 707000,
       "Instagram": "N/A",
-      "Facebook": "N/A"
+      "Facebook": 957480
     }
   }
 }
