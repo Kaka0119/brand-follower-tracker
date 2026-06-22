@@ -1,34 +1,40 @@
 {
   "采集时间": "2026-06-22 09:42:37",
+  "数据说明": {
+    "TikTok": "实时爬取 (GitHub Actions / 中国大陆)",
+    "Instagram": "前6个品牌来自中国大陆爬取(og:description)，剩余9个IG登录拦截无法获取",
+    "Facebook": "来自GitHub Actions海外runner爬取(meta description)，6个品牌获取成功"
+  },
+  "数据来源": "Kaka0119/brand-follower-tracker GitHub Actions",
   "数据": {
     "Mindjewel": {
       "TikTok": 843,
-      "Instagram": "N/A",
+      "Instagram": 2,
       "Facebook": "N/A"
     },
     "Tiffany & Co.": {
       "TikTok": 563400,
-      "Instagram": "N/A",
+      "Instagram": 17000000,
       "Facebook": 10373775
     },
     "Cartier": {
       "TikTok": 1100000,
-      "Instagram": "N/A",
+      "Instagram": 16000000,
       "Facebook": 5509464
     },
     "Bulgari": {
       "TikTok": 736200,
-      "Instagram": "N/A",
+      "Instagram": 14000000,
       "Facebook": 4771490
     },
     "Van Cleef & Arpels": {
       "TikTok": 466300,
-      "Instagram": "N/A",
+      "Instagram": 4000000,
       "Facebook": "N/A"
     },
     "David Yurman": {
       "TikTok": 363000,
-      "Instagram": "N/A",
+      "Instagram": 942000,
       "Facebook": 720373
     },
     "Monica Vinader": {
